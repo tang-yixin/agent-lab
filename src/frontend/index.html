@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MovieLens 数据治理 Agent</title>
+  <script src="/vendor/chart.umd.min.js"></script>
+  <script src="/vendor/marked.min.js"></script>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --primary: #4f6ef7;
+      --primary-dark: #3b56d4;
+      --accent: #10b981;
+      --danger: #ef4444;
+      --warn: #f59e0b;
+      --text: #1e293b;
+      --text-light: #64748b;
+      --border: #e2e8f0;
+      --shadow: 0 1px 3px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.05);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+        "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    .topbar {
+      background: linear-gradient(135deg, #4f6ef7 0%, #7c3aed 100%);
+      color: #fff;
+      padding: 20px 32px;
+      box-shadow: var(--shadow);
+    }
+    .topbar h1 { font-size: 22px; font-weight: 700; letter-spacing: .5px; }
+    .topbar p { font-size: 13px; opacity: .9; margin-top: 4px; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 420px;
+      gap: 20px;
+      padding: 24px 32px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    @media (max-width: 980px) { .layout { grid-template-columns: 1fr; } }
+
+    .card {
+      background: var(--card);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      padding: 20px;
+      border: 1px solid var(--border);
+    }
+    .card h2 {
+      font-size: 15px; font-weight: 600; color: var(--text);
+      margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
+    }
+    .card h2 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); }
+
+    /* 输入区 */
+    .input-wrap { display: flex; gap: 10px; }
+    textarea {
+      flex: 1; resize: vertical; min-height: 76px;
+      border: 1.5px solid var(--border); border-radius: 10px;
+      padding: 12px 14px; font-size: 14px; font-family: inherit;
+      color: var(--text); outline: none; transition: border-color .2s;
+    }
+    textarea:focus { border-color: var(--primary); }
+    button {
+      border: none; border-radius: 10px; cursor: pointer;
+      font-size: 14px; font-weight: 600; font-family: inherit;
+      transition: all .2s;
+    }
+    .btn-primary {
+      background: var(--primary); color: #fff; padding: 0 22px;
+      align-self: flex-end; min-height: 44px;
+    }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-primary:disabled { background: #b6c0f0; cursor: not-allowed; }
+    .btn-ghost {
+      background: #eef2ff; color: var(--primary); padding: 8px 16px;
+      font-size: 13px;
+    }
+    .btn-ghost:hover { background: #e0e7ff; }
+
+    /* 状态区 */
+    .status-line {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
+      font-size: 14px;
+    }
+    .spinner {
+      width: 16px; height: 16px; border: 2.5px solid #e0e7ff;
+      border-top-color: var(--primary); border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .badge {
+      display: inline-block; padding: 2px 10px; border-radius: 20px;
+      font-size: 12px; font-weight: 600;
+    }
+    .badge-running { background: #fef3c7; color: #b45309; }
+    .badge-done { background: #d1fae5; color: #065f46; }
+    .badge-fail { background: #fee2e2; color: #991b1b; }
+
+    /* 时间线 */
+    .timeline { list-style: none; }
+    .timeline li {
+      display: flex; gap: 12px; padding: 10px 0;
+      border-bottom: 1px dashed var(--border); font-size: 13px;
+    }
+    .timeline li:last-child { border-bottom: none; }
+    .timeline .icon {
+      width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; color: #fff; font-weight: 700;
+    }
+    .icon-score { background: #6366f1; }
+    .icon-clean { background: #10b981; }
+    .icon-sample { background: #f59e0b; }
+    .timeline .step-body { flex: 1; }
+    .timeline .step-title { font-weight: 600; }
+    .timeline .step-meta { color: var(--text-light); font-size: 12px; margin-top: 2px; }
+
+    /* 图表 */
+    .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 560px) { .chart-grid { grid-template-columns: 1fr; } }
+    .chart-box { position: relative; }
+    .chart-box canvas { max-height: 240px; }
+
+    /* 统计卡 */
+    .stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .stat {
+      background: #f8fafc; border-radius: 10px; padding: 12px 14px;
+      border: 1px solid var(--border);
+    }
+    .stat .num { font-size: 20px; font-weight: 700; color: var(--primary); }
+    .stat .lbl { font-size: 12px; color: var(--text-light); margin-top: 2px; }
+
+    /* 回答区 */
+    .answer { font-size: 14px; }
+    .answer table {
+      border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 13px;
+    }
+    .answer th, .answer td {
+      border: 1px solid var(--border); padding: 7px 10px; text-align: left;
+    }
+    .answer th { background: #f1f5f9; font-weight: 600; }
+    .answer h1, .answer h2, .answer h3 { margin: 14px 0 8px; }
+    .answer h2 { font-size: 16px; }
+    .answer h3 { font-size: 15px; }
+    .answer ul, .answer ol { margin: 8px 0 8px 20px; }
+    .answer p { margin: 8px 0; }
+    .answer code {
+      background: #f1f5f9; padding: 2px 6px; border-radius: 4px;
+      font-family: "SFMono-Regular", Consolas, monospace; font-size: 12px;
+    }
+    .answer pre {
+      background: #0f172a; color: #e2e8f0; padding: 12px; border-radius: 8px;
+      overflow-x: auto; font-size: 12px; margin: 10px 0;
+    }
+
+    .empty {
+      color: var(--text-light); text-align: center; padding: 40px 0;
+      font-size: 14px;
+    }
+    .error-box {
+      background: #fef2f2; border: 1px solid #fecaca; color: #991b1b;
+      border-radius: 10px; padding: 12px 14px; font-size: 13px; margin-top: 10px;
+    }
+    .quick-asks { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .quick-asks button {
+      background: #f8fafc; color: var(--text-light); border: 1px solid var(--border);
+      padding: 5px 12px; font-size: 12px; border-radius: 20px;
+    }
+    .quick-asks button:hover { border-color: var(--primary); color: var(--primary); }
+
+    /* 结果获取区 */
+    .sample-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+    .sample-tabs button {
+      background: #f1f5f9; color: var(--text-light); border: 1px solid var(--border);
+      padding: 5px 14px; font-size: 12px; border-radius: 8px;
+    }
+    .sample-tabs button.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .sample-box {
+      background: #0f172a; color: #cbd5e1; border-radius: 8px;
+      padding: 12px; font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 11.5px; max-height: 260px; overflow-y: auto; white-space: pre-wrap;
+      word-break: break-all; line-height: 1.7;
+    }
+    .dl-row { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+    .dl-row button {
+      background: #eef2ff; color: var(--primary); padding: 8px 16px;
+      font-size: 13px; border-radius: 8px;
+    }
+    .dl-row button:hover { background: #e0e7ff; }
+    .count-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+    .count-tags .tag {
+      background: #f8fafc; border: 1px solid var(--border); border-radius: 16px;
+      padding: 3px 12px; font-size: 12px; color: var(--text-light);
+    }
+    .count-tags .tag b { color: var(--primary); }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <h1>🎬 MovieLens 数据治理 Agent</h1>
+    <p>输入自然语言请求，Agent 将调用 Hadoop 完成数据清洗与五维质量评估</p>
+  </div>
+
+  <div class="layout">
+    <!-- 左列：交互与回答 -->
+    <div>
+      <div class="card">
+        <h2><span class="dot"></span>问题输入</h2>
+        <div class="input-wrap">
+          <textarea id="input" placeholder="例如：请使用默认规则清洗 MovieLens 1M，评估清洗前后的 Accurate、Complete、Unique、Up-to-date、Consistent 五个维度……"></textarea>
+          <button class="btn-primary" id="submit">提交</button>
+        </div>
+        <div class="quick-asks">
+          <button data-q="请清洗并评估 MovieLens 1M 的五维质量">默认清洗评估</button>
+          <button data-q="清洗后数据量减少了多少？隔离了哪些异常？">追问数据量变化</button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:20px;">
+        <h2><span class="dot"></span>执行情况</h2>
+        <div class="status-line" id="statusLine">
+          <span id="statusText" style="color:var(--text-light);">等待任务…</span>
+        </div>
+        <ul class="timeline" id="timeline"></ul>
+      </div>
+
+      <div class="card" style="margin-top:20px;">
+        <h2><span class="dot"></span>Agent 解释</h2>
+        <div class="empty" id="answerEmpty">提交任务后，这里将展示 Agent 的分析与解释。</div>
+        <div class="answer" id="answer" style="display:none;"></div>
+        <div class="error-box" id="errorBox" style="display:none;"></div>
+      </div>
+    </div>
+
+    <!-- 右列：图表与统计 -->
+    <div>
+      <div class="card">
+        <h2><span class="dot"></span>五维评分对比</h2>
+        <div class="chart-grid">
+          <div class="chart-box"><canvas id="radarChart"></canvas></div>
+          <div class="chart-box"><canvas id="barChart"></canvas></div>
+        </div>
+        <div class="empty" id="chartEmpty" style="padding:20px 0;">暂无评分数据</div>
+      </div>
+
+      <div class="card" style="margin-top:20px;">
+        <h2><span class="dot"></span>数据量变化与清洗统计</h2>
+        <div class="stat-grid" id="statGrid">
+          <div class="stat"><div class="num">-</div><div class="lbl">清洗前记录数</div></div>
+          <div class="stat"><div class="num">-</div><div class="lbl">清洗后记录数</div></div>
+          <div class="stat"><div class="num">-</div><div class="lbl">修复 (fix)</div></div>
+          <div class="stat"><div class="num">-</div><div class="lbl">去重 (dedup)</div></div>
+          <div class="stat"><div class="num">-</div><div class="lbl">隔离 (quarantine)</div></div>
+          <div class="stat"><div class="num">-</div><div class="lbl">冲突 (conflict)</div></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:20px;">
+        <h2><span class="dot"></span>结果获取</h2>
+        <div class="count-tags" id="countTags">
+          <span class="tag">运行任务后显示各类型记录数</span>
+        </div>
+        <div class="sample-tabs">
+          <button id="tabClean" class="active" data-mode="clean">清洗后数据样例</button>
+          <button id="tabQuarantine" data-mode="quarantine">隔离记录样例</button>
+        </div>
+        <div class="sample-box" id="sampleBox">运行任务后点击上方标签查看数据样例</div>
+        <div class="dl-row">
+          <button id="btnRefresh">🔄 刷新样例</button>
+          <button id="btnReport">📄 下载评估报告 (JSON)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let history = []; // 对话历史 [{role, content}]
+    let radarChart = null, barChart = null;
+
+    // ---- Markdown 渲染 ----
+    marked.setOptions({ breaks: true, gfm: true });
+
+    // ---- 状态控制 ----
+    function setStatus(state, text) {
+      const line = $('statusLine');
+      line.innerHTML = '';
+      const textEl = document.createElement('span');
+      textEl.id = 'statusText';
+      textEl.style.color = 'var(--text-light)';
+      textEl.textContent = text;
+      line.appendChild(textEl);
+
+      if (state === 'running') {
+        const sp = document.createElement('div');
+        sp.className = 'spinner';
+        line.insertBefore(sp, line.firstChild);
+        textEl.style.color = 'var(--text-light)';
+      } else if (state === 'done') {
+        const b = document.createElement('span');
+        b.className = 'badge badge-done'; b.textContent = '已完成';
+        line.insertBefore(b, line.firstChild);
+      } else if (state === 'fail') {
+        const b = document.createElement('span');
+        b.className = 'badge badge-fail'; b.textContent = '失败';
+        line.insertBefore(b, line.firstChild);
+      }
+      $('statusText').textContent = text;
+    }
+
+    function renderTimeline(steps) {
+      const tl = $('timeline');
+      tl.innerHTML = '';
+      const meta = {
+        score_data: { icon: 'S', cls: 'icon-score', title: '五维质量评分' },
+        clean_data: { icon: 'C', cls: 'icon-clean', title: '数据清洗' },
+        read_quarantine_samples: { icon: 'Q', cls: 'icon-sample', title: '读取隔离样例' },
+      };
+      steps.forEach((s) => {
+        const m = meta[s.tool] || { icon: '?', cls: 'icon-score', title: s.tool };
+        const li = document.createElement('li');
+        const icon = document.createElement('div');
+        icon.className = 'icon ' + m.cls;
+        icon.textContent = m.icon;
+        const body = document.createElement('div');
+        body.className = 'step-body';
+        const title = document.createElement('div');
+        title.className = 'step-title';
+        title.textContent = m.title;
+        const meta2 = document.createElement('div');
+        meta2.className = 'step-meta';
+        const r = s.result || {};
+        if (r.status === 'failed' || r.status === 'error') {
+          meta2.textContent = '失败：' + (r.message || r.stderr || '未知错误');
+          meta2.style.color = 'var(--danger)';
+        } else if (s.tool === 'score_data') {
+          const sc = r.scores || {};
+          meta2.textContent = '综合分 ' + (sc.Overall ?? '-') + ' · 输入 ' + (s.args.input_path || '');
+        } else if (s.tool === 'clean_data') {
+          meta2.textContent = '修复 ' + r.fixed + ' · 去重 ' + r.dedup + ' · 隔离 ' + r.quarantine;
+        } else {
+          meta2.textContent = '读取 ' + (Array.isArray(r) ? r.length : 0) + ' 条样例';
+        }
+        body.appendChild(title); body.appendChild(meta2);
+        li.appendChild(icon); li.appendChild(body);
+        tl.appendChild(li);
+      });
+    }
+
+    // ---- 图表 ----
+    const DIMS = ['Accurate', 'Complete', 'Unique', 'Up-to-date', 'Consistent'];
+    function renderCharts(before, after) {
+      $('chartEmpty').style.display = 'none';
+      const radarCtx = $('radarChart').getContext('2d');
+      const barCtx = $('barChart').getContext('2d');
+
+      if (radarChart) radarChart.destroy();
+      if (barChart) barChart.destroy();
+
+      radarChart = new Chart(radarCtx, {
+        type: 'radar',
+        data: {
+          labels: DIMS,
+          datasets: [
+            { label: '清洗前', data: DIMS.map(d => before[d]), borderColor: '#ef4444',
+              backgroundColor: 'rgba(239,68,68,.12)', pointBackgroundColor: '#ef4444' },
+            { label: '清洗后', data: DIMS.map(d => after[d]), borderColor: '#10b981',
+              backgroundColor: 'rgba(16,185,129,.12)', pointBackgroundColor: '#10b981' },
+          ],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: true,
+          scales: { r: { min: 0, max: 100, ticks: { stepSize: 20 } } },
+          plugins: { legend: { position: 'bottom' } },
+        },
+      });
+
+      barChart = new Chart(barCtx, {
+        type: 'bar',
+        data: {
+          labels: DIMS,
+          datasets: [
+            { label: '清洗前', data: DIMS.map(d => before[d]), backgroundColor: 'rgba(239,68,68,.7)' },
+            { label: '清洗后', data: DIMS.map(d => after[d]), backgroundColor: 'rgba(16,185,129,.7)' },
+          ],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: true,
+          scales: { y: { min: 0, max: 100 } },
+          plugins: { legend: { position: 'bottom' } },
+        },
+      });
+    }
+
+    function renderStats(steps) {
+      const grid = $('statGrid');
+      grid.innerHTML = '';
+      let before, clean, after;
+      steps.forEach((s) => {
+        if (s.tool === 'score_data' && s.result && s.result.scores) {
+          if (!before) before = s.result;
+          else after = s.result;
+        }
+        if (s.tool === 'clean_data' && s.result) clean = s.result;
+      });
+
+      const items = [
+        { num: before ? (before.counts.total ?? '-') : '-', lbl: '清洗前记录数' },
+        { num: after ? (after.counts.total ?? '-') : '-', lbl: '清洗后记录数' },
+        { num: clean ? (clean.fixed ?? '-') : '-', lbl: '修复 (fix)' },
+        { num: clean ? (clean.dedup ?? '-') : '-', lbl: '去重 (dedup)' },
+        { num: clean ? (clean.quarantine ?? '-') : '-', lbl: '隔离 (quarantine)' },
+        { num: clean ? (clean.conflict ?? '-') : '-', lbl: '冲突 (conflict)' },
+      ];
+      items.forEach((it) => {
+        const div = document.createElement('div');
+        div.className = 'stat';
+        div.innerHTML = `<div class="num">${it.num}</div><div class="lbl">${it.lbl}</div>`;
+        grid.appendChild(div);
+      });
+    }
+
+    function extractScores(steps) {
+      let before = null, after = null;
+      steps.forEach((s) => {
+        if (s.tool === 'score_data' && s.result && s.result.scores) {
+          if (!before) before = s.result.scores;
+          else after = s.result.scores;
+        }
+      });
+      return { before, after };
+    }
+
+    // ---- 提交 ----
+    async function submit(message) {
+      const btn = $('submit');
+      btn.disabled = true;
+      setStatus('running', 'Agent 正在执行任务…');
+      $('timeline').innerHTML = '';
+      $('errorBox').style.display = 'none';
+      $('answer').style.display = 'none';
+      $('answerEmpty').style.display = 'block';
+      $('answerEmpty').textContent = '正在处理，请稍候（MapReduce 作业运行中）…';
+
+      try {
+        const resp = await fetch('/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message, history }),
+        });
+        const data = await resp.json();
+
+        history.push({ role: 'user', content: message });
+        history.push({ role: 'assistant', content: data.answer });
+
+        renderTimeline(data.steps);
+        renderStats(data.steps);
+        const { before, after } = extractScores(data.steps);
+        if (before && after) renderCharts(before, after);
+
+        if (data.status === 'failed') {
+          setStatus('fail', '任务执行失败');
+          $('errorBox').style.display = 'block';
+          $('errorBox').textContent = data.answer;
+          $('answerEmpty').style.display = 'none';
+        } else {
+          setStatus('done', '任务完成');
+          $('answerEmpty').style.display = 'none';
+          $('answer').style.display = 'block';
+          $('answer').innerHTML = marked.parse(data.answer);
+        }
+      } catch (e) {
+        setStatus('fail', '请求失败');
+        $('errorBox').style.display = 'block';
+        $('errorBox').textContent = '请求出错：' + e.message;
+        $('answerEmpty').style.display = 'none';
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    $('submit').addEventListener('click', () => {
+      const v = $('input').value.trim();
+      if (v) submit(v);
+    });
+    $('input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        const v = $('input').value.trim();
+        if (v) submit(v);
+      }
+    });
+    document.querySelectorAll('.quick-asks button').forEach((b) => {
+      b.addEventListener('click', () => submit(b.dataset.q));
+    });
+
+    // ---- 结果获取 ----
+    let sampleMode = 'clean';
+
+    async function loadSamples() {
+      try {
+        const resp = await fetch('/samples');
+        const data = await resp.json();
+        if (data.status === 'failed') {
+          $('sampleBox').textContent = data.message;
+          return;
+        }
+        // 更新记录数标签
+        const cc = data.clean_counts || {};
+        $('countTags').innerHTML = `
+          <span class="tag">ratings: <b>${cc.ratings ?? '-'}</b></span>
+          <span class="tag">users: <b>${cc.users ?? '-'}</b></span>
+          <span class="tag">movies: <b>${cc.movies ?? '-'}</b></span>
+          <span class="tag">合计: <b>${cc.total ?? '-'}</b></span>
+        `;
+        // 更新样例
+        const list = sampleMode === 'clean' ? data.clean_samples : data.quarantine_samples;
+        $('sampleBox').textContent = (list && list.length)
+          ? list.join('\n')
+          : '暂无数据（请先运行一次清洗任务）';
+      } catch (e) {
+        $('sampleBox').textContent = '加载样例失败：' + e.message;
+      }
+    }
+
+    document.querySelectorAll('.sample-tabs button').forEach((b) => {
+      b.addEventListener('click', () => {
+        sampleMode = b.dataset.mode;
+        document.querySelectorAll('.sample-tabs button').forEach((x) => x.classList.remove('active'));
+        b.classList.add('active');
+        loadSamples();
+      });
+    });
+
+    $('btnRefresh').addEventListener('click', loadSamples);
+
+    $('btnReport').addEventListener('click', async () => {
+      try {
+        const resp = await fetch('/report');
+        const data = await resp.json();
+        if (data.status === 'failed') {
+          alert(data.message);
+          return;
+        }
+        const blob = new Blob([JSON.stringify(data.report, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'evaluation_report.json';
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        alert('下载失败：' + e.message);
+      }
+    });
+
+    // 页面加载后自动刷新一次样例（若已有结果）
+    loadSamples();
+  </script>
+</body>
+</html>

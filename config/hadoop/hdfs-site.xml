@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+  <!-- 副本数：单节点只有 1 份 -->
+  <property>
+    <name>dfs.replication</name>
+    <value>1</value>
+  </property>
+  <!-- NameNode 元数据目录 -->
+  <property>
+    <name>dfs.namenode.name.dir</name>
+    <value>/data/hdfs/name</value>
+  </property>
+  <!-- DataNode 数据块目录 -->
+  <property>
+    <name>dfs.datanode.data.dir</name>
+    <value>/data/hdfs/data</value>
+  </property>
+  <!-- 单节点下关闭权限检查，避免 hadoop 用户写入问题 -->
+  <property>
+    <name>dfs.permissions.enabled</name>
+    <value>false</value>
+  </property>
+</configuration>
