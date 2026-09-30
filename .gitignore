@@ -13,6 +13,9 @@ config/secrets.env
 # Maven 编译产物（jar 由 mvn package 生成）
 src/hadoop/target/
 
+# ---- 运行产物（每次任务自动归档的报告，不入库）----
+reports/
+
 # ---- IDE / 系统 ----
 .idea/
 *.iml

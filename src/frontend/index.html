@@ -203,6 +203,22 @@
       padding: 3px 12px; font-size: 12px; color: var(--text-light);
     }
     .count-tags .tag b { color: var(--primary); }
+    .task-id-line {
+      font-size: 12px; color: var(--text-light); margin-top: 6px;
+      word-break: break-all;
+    }
+    .history-list { display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow-y: auto; }
+    .history-item {
+      background: #f8fafc; border: 1px solid var(--border); border-radius: 8px;
+      padding: 6px 10px; font-size: 12px; cursor: pointer; color: var(--text);
+      transition: all .15s; word-break: break-all;
+    }
+    .history-item:hover { border-color: var(--primary); color: var(--primary); background: #eef2ff; }
+    .history-empty { color: var(--text-light); font-size: 12px; padding: 6px 0; }
+    .history-header {
+      font-size: 12px; color: var(--text-light); margin: 12px 0 6px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
   </style>
 </head>
 <body>
@@ -231,6 +247,7 @@
         <div class="status-line" id="statusLine">
           <span id="statusText" style="color:var(--text-light);">等待任务…</span>
         </div>
+        <div class="task-id-line" id="taskIdLine" style="display:none;"></div>
         <ul class="timeline" id="timeline"></ul>
       </div>
 
@@ -278,6 +295,13 @@
         <div class="dl-row">
           <button id="btnRefresh">🔄 刷新样例</button>
           <button id="btnReport">📄 下载评估报告 (JSON)</button>
+        </div>
+        <div class="history-header">
+          <span>📁 历史报告（自动归档）</span>
+          <button class="btn-ghost" id="btnRefreshHistory" style="padding:4px 12px; font-size:12px;">刷新列表</button>
+        </div>
+        <div class="history-list" id="historyList">
+          <div class="history-empty">暂无历史报告</div>
         </div>
       </div>
     </div>
@@ -479,6 +503,14 @@
           $('answer').style.display = 'block';
           $('answer').innerHTML = marked.parse(data.answer);
         }
+
+        // 显示任务 ID
+        if (data.task_id) {
+          $('taskIdLine').style.display = 'block';
+          $('taskIdLine').textContent = '任务 ID：' + data.task_id;
+        }
+        // 任务完成后刷新历史报告列表
+        loadHistory();
       } catch (e) {
         setStatus('fail', '请求失败');
         $('errorBox').style.display = 'block';
@@ -565,6 +597,50 @@
 
     // 页面加载后自动刷新一次样例（若已有结果）
     loadSamples();
+
+    // ---- 历史报告 ----
+    async function loadHistory() {
+      try {
+        const resp = await fetch('/reports');
+        const data = await resp.json();
+        const list = data.reports || [];
+        if (list.length === 0) {
+          $('historyList').innerHTML = '<div class="history-empty">暂无历史报告</div>';
+          return;
+        }
+        $('historyList').innerHTML = list.map(f =>
+          `<div class="history-item" data-file="${f}">📄 ${f}</div>`
+        ).join('');
+        document.querySelectorAll('.history-item').forEach((el) => {
+          el.addEventListener('click', () => viewHistory(el.dataset.file));
+        });
+      } catch (e) {
+        $('historyList').innerHTML = '<div class="history-empty">加载失败</div>';
+      }
+    }
+
+    async function viewHistory(filename) {
+      try {
+        const resp = await fetch('/report-file/' + encodeURIComponent(filename));
+        const data = await resp.json();
+        if (data.status !== 'completed') {
+          alert(data.message || '读取失败');
+          return;
+        }
+        const blob = new Blob([JSON.stringify(data.report, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        alert('查看失败：' + e.message);
+      }
+    }
+
+    $('btnRefreshHistory').addEventListener('click', loadHistory);
+    loadHistory();
   </script>
 </body>
 </html>

@@ -7,8 +7,11 @@ FastAPI 后端：接收前端自然语言请求，调用 Agent 完成数据治�
   GET  /             前端页面（后续阶段接入）
   GET  /health       健康检查
 """
+import json
 import os
 import sys
+import uuid
+from datetime import datetime
 
 # 使 backend 能导入 agent 包
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "agent"))
@@ -62,6 +65,25 @@ class ChatResponse(BaseModel):
     answer: str
     steps: list
     status: str
+    task_id: Optional[str] = None
+
+
+# 报告归档目录（项目根目录 reports/）
+_REPORTS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "reports")
+
+
+def _archive_report(task_id: str, report_data: dict) -> str:
+    """将完整报告写入本地 reports/ 目录，返回文件名。"""
+    os.makedirs(_REPORTS_DIR, exist_ok=True)
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    filename = f"task-{task_id[:8]}-{ts}.json"
+    payload = dict(report_data)
+    payload["task_id"] = task_id
+    payload["created_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    path = os.path.join(_REPORTS_DIR, filename)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+    return filename
 
 
 @app.get("/health")
@@ -102,14 +124,60 @@ def samples(limit: int = 30):
 
 @app.post("/chat", response_model=ChatResponse)
 def chat(req: ChatRequest):
+    task_id = str(uuid.uuid4())
     try:
         agent = get_agent()
         result = agent.run(req.message, history=req.history)
-        return ChatResponse(answer=result["answer"], steps=result["steps"], status="completed")
+        # 任务完成后自动归档报告（HDFS 有有效结果时才归档）
+        try:
+            report = hadoop_tools.build_report(
+                hadoop_tools.SCORE_BEFORE,
+                hadoop_tools.CLEANED,
+                hadoop_tools.SCORE_AFTER,
+            )
+            if report.get("score_before") or report.get("clean_summary"):
+                _archive_report(task_id, report)
+        except Exception:
+            pass  # 归档失败不影响主流程
+        return ChatResponse(
+            answer=result["answer"],
+            steps=result["steps"],
+            status="completed",
+            task_id=task_id,
+        )
     except RuntimeError as e:
-        return ChatResponse(answer=str(e), steps=[], status="failed")
+        return ChatResponse(answer=str(e), steps=[], status="failed", task_id=task_id)
     except Exception as e:  # noqa: BLE001
-        return ChatResponse(answer=f"执行失败：{e}", steps=[], status="failed")
+        return ChatResponse(answer=f"执行失败：{e}", steps=[], status="failed", task_id=task_id)
+
+
+@app.get("/reports")
+def list_reports():
+    """列出 reports/ 目录下的历史报告文件名（倒序）。"""
+    os.makedirs(_REPORTS_DIR, exist_ok=True)
+    try:
+        files = sorted(
+            [f for f in os.listdir(_REPORTS_DIR) if f.endswith(".json")],
+            reverse=True,
+        )
+        return {"status": "completed", "reports": files}
+    except Exception as e:  # noqa: BLE001
+        return {"status": "failed", "message": f"读取报告列表失败：{e}"}
+
+
+@app.get("/report-file/{filename}")
+def get_report_file(filename: str):
+    """读取单个历史报告的完整内容。"""
+    if not filename.endswith(".json"):
+        return {"status": "failed", "message": "非法文件名"}
+    path = os.path.join(_REPORTS_DIR, filename)
+    if not os.path.exists(path):
+        return {"status": "failed", "message": "文件不存在"}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return {"status": "completed", "report": json.load(f)}
+    except Exception as e:  # noqa: BLE001
+        return {"status": "failed", "message": f"读取报告失败：{e}"}
 
 
 # 托管前端静态页面（放在路由之后，作为兜底）

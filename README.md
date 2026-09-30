@@ -46,14 +46,16 @@ agent-lab/
 │   │   └── agent.py          # Agent 编排（function calling + 工具定义）
 │   ├── backend/         # FastAPI 后端
 │   │   ├── __init__.py       # 包标记（空文件，勿删）
-│   │   └── main.py          # /chat /health /report /samples 端点 + 静态页面托管
+│   │   └── main.py          # /chat /health /report /samples /reports 端点 + 静态页面托管
 │   └── frontend/        # 前端页面
-│       ├── index.html       # 单页应用（输入/状态/图表/解释/追问/结果获取）
+│       ├── index.html       # 单页应用（输入/状态/图表/解释/追问/结果获取/历史报告）
 │       └── vendor/          # 本地化的 Chart.js + marked（免 CDN）
 ├── config/
 │   ├── hadoop/          # 4 个 Hadoop 配置（core/hdfs/yarn/mapred-site.xml）
+│   ├── version.json     # 版本信息（数据/规则/评分/时间边界）
 │   └── secrets.env      # DeepSeek API key（本地配置，勿提交 git）
-├── docs/                # 文档（规划、方案、问题日志、交付文档）
+├── reports/             # 任务自动归档的报告（运行产物，不入 git）
+├── docs/                # 文档（项目详解、演示引导、交付文档、问题日志、方案定稿）
 ├── scripts/
 │   ├── probe_data.py     # 数据探查
 │   ├── probe_samples.py  # 脏数据抽样
@@ -237,8 +239,8 @@ T2 之后为测试期，后续迭代不得混用。详见 `docs/阶段7_时间�
 - [x] 阶段 3：MapReduce 作业（评分/清洗）开发并跑通
 - [x] 阶段 4：Agent（DeepSeek function calling）实现并端到端联调
 - [x] 阶段 5：FastAPI 后端（/chat /health + 静态托管）
-- [x] 阶段 6：前端页面（输入/状态/雷达图/统计/解释/追问/结果获取）
-- [x] 阶段 7：T1/T2 与版本管理
+- [x] 阶段 6：前端页面（输入/状态/雷达图/统计/解释/追问/结果获取/历史报告）
+- [x] 阶段 7：T1/T2 与版本管理（含任务 ID、报告自动归档、版本配置化）
 
 ### ✅ 已完成
 - [x] 阶段 8：最终文档（`docs/系统说明与交付文档.md`）—— 系统说明/运行方法/工具接口/版本/配置/结果/限制

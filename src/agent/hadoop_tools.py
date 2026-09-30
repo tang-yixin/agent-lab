@@ -9,8 +9,12 @@ Agent（DeepSeek function calling）通过调用这些函数完成任务，
 不直接接触 Hadoop，保证"清洗与评分实际通过 Hadoop 执行"。
 """
 import json
+import os
 import subprocess
 from typing import Any, Dict
+
+# 项目根目录（agent -> src -> agent-lab）
+_BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # ---- HDFS 路径约定（与 docker-compose 挂载、启动脚本一致）----
 CONTAINER = "lab2-hadoop"
@@ -159,6 +163,22 @@ def read_clean_counts(output_path: str) -> Dict[str, int]:
     return counts
 
 
+def _load_version() -> Dict[str, str]:
+    """从 config/version.json 读取版本信息，文件缺失时回退默认值。"""
+    path = os.path.join(_BASE_DIR, "config", "version.json")
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {
+            "raw": "raw-v1.0",
+            "cleaned": "cleaned-v1.0",
+            "rules": "rules-v1.0",
+            "scoring": "scoring-v1.0",
+            "timeboundary": "timeboundary-v1.0",
+        }
+
+
 def build_report(score_before_path: str, cleaned_path: str,
                  score_after_path: str) -> Dict[str, Any]:
     """
@@ -174,14 +194,8 @@ def build_report(score_before_path: str, cleaned_path: str,
     summary = _read_json_from_hdfs(f"{cleaned_path}/summary.json")
     counts = read_clean_counts(cleaned_path)
 
-    # 版本信息（与 docs 定稿一致）
-    version = {
-        "raw": "raw-v1.0",
-        "cleaned": "cleaned-v1.0",
-        "rules": "rules-v1.0",
-        "scoring": "scoring-v1.0",
-        "timeboundary": "timeboundary-v1.0",
-    }
+    # 版本信息（从 config/version.json 读取）
+    version = _load_version()
     time_boundary = {
         "T1": "2000-12-31 23:59:59 UTC",
         "T2": "2001-12-31 23:59:59 UTC",
