@@ -1,6 +1,10 @@
 services:
   hadoop:
-    image: apache/hadoop:3.4.1
+    # 迭代二：基于 apache/hadoop:3.4.1 构建，叠加 Miniconda + sklearn 运行时
+    build:
+      context: .
+      dockerfile: src/ml/Dockerfile
+    image: lab2-hadoop-ml:1.0
     container_name: lab2-hadoop
     hostname: lab2-hadoop
     ports:
@@ -18,6 +22,9 @@ services:
       - ./scripts/start-hadoop.sh:/opt/start-hadoop.sh:ro
       # 挂载 MapReduce 作业 jar（随容器自动恢复，无需每次 docker cp）
       - ./src/hadoop/target/hadoop-jobs.jar:/opt/hadoop-jobs.jar:ro
+      # 迭代二：挂载机器学习脚本（只读）与产物目录（宿主可读）
+      - ./src/ml:/opt/ml:ro
+      - ./ml-artifacts:/opt/ml-artifacts
       # 数据卷：HDFS 元数据/数据块 + 待处理数据
       - hadoop-data:/data
       - ./ml-1m:/data/raw:ro

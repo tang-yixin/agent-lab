@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MovieLens 数据治理 Agent</title>
+  <title>MovieLens 数据分析 Agent</title>
   <script src="/vendor/chart.umd.min.js"></script>
   <script src="/vendor/marked.min.js"></script>
   <style>
@@ -32,21 +32,38 @@
     .topbar {
       background: linear-gradient(135deg, #4f6ef7 0%, #7c3aed 100%);
       color: #fff;
-      padding: 20px 32px;
+      padding: 18px 32px 14px;
       box-shadow: var(--shadow);
     }
     .topbar h1 { font-size: 22px; font-weight: 700; letter-spacing: .5px; }
     .topbar p { font-size: 13px; opacity: .9; margin-top: 4px; }
 
+    .nav {
+      display: flex; gap: 8px; padding: 0 32px; margin-top: -1px;
+      max-width: 1400px; margin-left: auto; margin-right: auto;
+      position: relative; z-index: 2;
+    }
+    .nav button {
+      background: rgba(255,255,255,.92); color: var(--text-light);
+      border: 1px solid var(--border); border-top: none; border-radius: 0 0 10px 10px;
+      padding: 9px 22px; font-size: 14px; font-weight: 600; cursor: pointer;
+      transition: all .15s;
+    }
+    .nav button.active { background: #fff; color: var(--primary); }
+    .nav button:hover { color: var(--primary); }
+
     .layout {
       display: grid;
-      grid-template-columns: 1fr 420px;
+      grid-template-columns: 1fr 460px;
       gap: 20px;
       padding: 24px 32px;
       max-width: 1400px;
       margin: 0 auto;
     }
     @media (max-width: 980px) { .layout { grid-template-columns: 1fr; } }
+
+    .panel { display: none; }
+    .panel.active { display: block; }
 
     .card {
       background: var(--card);
@@ -87,6 +104,16 @@
     }
     .btn-ghost:hover { background: #e0e7ff; }
 
+    /* 参数行（分类/聚类/降维面板的快捷参数输入） */
+    .param-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+    .param-row label { font-size: 12px; color: var(--text-light); }
+    .param-row input, .param-row select {
+      border: 1.5px solid var(--border); border-radius: 8px;
+      padding: 6px 10px; font-size: 13px; outline: none; background: #fff; color: var(--text);
+    }
+    .param-row input { width: 110px; }
+    .param-row input:focus, .param-row select:focus { border-color: var(--primary); }
+
     /* 状态区 */
     .status-line {
       display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
@@ -121,6 +148,10 @@
     .icon-score { background: #6366f1; }
     .icon-clean { background: #10b981; }
     .icon-sample { background: #f59e0b; }
+    .icon-class { background: #8b5cf6; }
+    .icon-cluster { background: #0ea5e9; }
+    .icon-dim { background: #f43f5e; }
+    .icon-reg { background: #64748b; }
     .timeline .step-body { flex: 1; }
     .timeline .step-title { font-weight: 600; }
     .timeline .step-meta { color: var(--text-light); font-size: 12px; margin-top: 2px; }
@@ -130,6 +161,7 @@
     @media (max-width: 560px) { .chart-grid { grid-template-columns: 1fr; } }
     .chart-box { position: relative; }
     .chart-box canvas { max-height: 240px; }
+    .scatter-box canvas { max-height: 360px; }
 
     /* 统计卡 */
     .stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
@@ -139,6 +171,45 @@
     }
     .stat .num { font-size: 20px; font-weight: 700; color: var(--primary); }
     .stat .lbl { font-size: 12px; color: var(--text-light); margin-top: 2px; }
+
+    /* 通用表格 */
+    .tbl { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 13px; }
+    .tbl th, .tbl td {
+      border: 1px solid var(--border); padding: 6px 9px; text-align: left;
+    }
+    .tbl th { background: #f1f5f9; font-weight: 600; }
+    .tbl .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+    /* 结果卡片（分类/聚类） */
+    .algo-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 10px; }
+    @media (max-width: 760px) { .algo-cards { grid-template-columns: 1fr; } }
+    .algo-card {
+      border: 1px solid var(--border); border-radius: 12px; padding: 14px;
+      background: #fbfcfe;
+    }
+    .algo-card h3 { font-size: 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+    .algo-card .prob {
+      font-size: 30px; font-weight: 800; color: var(--primary); margin: 4px 0;
+    }
+    .algo-card .prob-bar {
+      height: 8px; border-radius: 4px; background: #e2e8f0; overflow: hidden; margin: 6px 0 10px;
+    }
+    .algo-card .prob-bar > div { height: 100%; background: linear-gradient(90deg, #4f6ef7, #10b981); }
+    .algo-card .kv { font-size: 12.5px; color: var(--text-light); margin: 2px 0; }
+    .algo-card .kv b { color: var(--text); }
+    .note-list { list-style: none; margin-top: 8px; }
+    .note-list li {
+      background: #fffbeb; border: 1px solid #fde68a; color: #92400e;
+      border-radius: 8px; padding: 6px 10px; font-size: 12.5px; margin: 4px 0;
+    }
+    .pill {
+      display: inline-block; padding: 1px 9px; border-radius: 12px; font-size: 12px;
+      font-weight: 700; color: #fff;
+    }
+    .pill-pos { background: #10b981; }
+    .pill-neg { background: #ef4444; }
+    .pill-noise { background: #64748b; }
+    .pill-warn { background: #f59e0b; }
 
     /* 回答区 */
     .answer { font-size: 14px; }
@@ -170,6 +241,10 @@
     .error-box {
       background: #fef2f2; border: 1px solid #fecaca; color: #991b1b;
       border-radius: 10px; padding: 12px 14px; font-size: 13px; margin-top: 10px;
+    }
+    .info-box {
+      background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af;
+      border-radius: 10px; padding: 10px 14px; font-size: 12.5px; margin-top: 10px;
     }
     .quick-asks { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
     .quick-asks button {
@@ -219,47 +294,50 @@
       font-size: 12px; color: var(--text-light); margin: 12px 0 6px;
       display: flex; align-items: center; justify-content: space-between;
     }
+
+    .scroll-table { max-height: 320px; overflow-y: auto; }
   </style>
 </head>
 <body>
   <div class="topbar">
-    <h1>🎬 MovieLens 数据治理 Agent</h1>
-    <p>输入自然语言请求，Agent 将调用 Hadoop 完成数据清洗与五维质量评估</p>
+    <h1>🎬 MovieLens 数据分析 Agent</h1>
+    <p>迭代一：Hadoop 数据清洗与五维评估　|　迭代二：分类 · 聚类 · 降维分析（T1=2000-12-31，T2=2001-12-31）</p>
   </div>
 
-  <div class="layout">
-    <!-- 左列：交互与回答 -->
+  <div class="nav">
+    <button data-panel="clean" class="active">🧹 数据清洗</button>
+    <button data-panel="class">🎯 分类预测</button>
+    <button data-panel="cluster">👥 用户聚类</button>
+    <button data-panel="dim">📉 降维分析</button>
+  </div>
+
+  <!-- ================= 面板一：数据清洗（迭代一） ================= -->
+  <div class="layout panel active" id="panel-clean">
     <div>
       <div class="card">
         <h2><span class="dot"></span>问题输入</h2>
         <div class="input-wrap">
-          <textarea id="input" placeholder="例如：请使用默认规则清洗 MovieLens 1M，评估清洗前后的 Accurate、Complete、Unique、Up-to-date、Consistent 五个维度……"></textarea>
-          <button class="btn-primary" id="submit">提交</button>
+          <textarea id="clean-input" placeholder="例如：请使用默认规则清洗 MovieLens 1M，评估清洗前后的 Accurate、Complete、Unique、Up-to-date、Consistent 五个维度……"></textarea>
+          <button class="btn-primary" id="clean-submit">提交</button>
         </div>
         <div class="quick-asks">
           <button data-q="请清洗并评估 MovieLens 1M 的五维质量">默认清洗评估</button>
           <button data-q="清洗后数据量减少了多少？隔离了哪些异常？">追问数据量变化</button>
         </div>
       </div>
-
       <div class="card" style="margin-top:20px;">
         <h2><span class="dot"></span>执行情况</h2>
-        <div class="status-line" id="statusLine">
-          <span id="statusText" style="color:var(--text-light);">等待任务…</span>
-        </div>
-        <div class="task-id-line" id="taskIdLine" style="display:none;"></div>
-        <ul class="timeline" id="timeline"></ul>
+        <div class="status-line" id="clean-status"></div>
+        <div class="task-id-line" id="clean-taskId" style="display:none;"></div>
+        <ul class="timeline" id="clean-timeline"></ul>
       </div>
-
       <div class="card" style="margin-top:20px;">
         <h2><span class="dot"></span>Agent 解释</h2>
-        <div class="empty" id="answerEmpty">提交任务后，这里将展示 Agent 的分析与解释。</div>
-        <div class="answer" id="answer" style="display:none;"></div>
-        <div class="error-box" id="errorBox" style="display:none;"></div>
+        <div class="empty" id="clean-answerEmpty">提交任务后，这里将展示 Agent 的分析与解释。</div>
+        <div class="answer" id="clean-answer" style="display:none;"></div>
+        <div class="error-box" id="clean-error" style="display:none;"></div>
       </div>
     </div>
-
-    <!-- 右列：图表与统计 -->
     <div>
       <div class="card">
         <h2><span class="dot"></span>五维评分对比</h2>
@@ -269,7 +347,6 @@
         </div>
         <div class="empty" id="chartEmpty" style="padding:20px 0;">暂无评分数据</div>
       </div>
-
       <div class="card" style="margin-top:20px;">
         <h2><span class="dot"></span>数据量变化与清洗统计</h2>
         <div class="stat-grid" id="statGrid">
@@ -281,7 +358,6 @@
           <div class="stat"><div class="num">-</div><div class="lbl">冲突 (conflict)</div></div>
         </div>
       </div>
-
       <div class="card" style="margin-top:20px;">
         <h2><span class="dot"></span>结果获取</h2>
         <div class="count-tags" id="countTags">
@@ -307,29 +383,185 @@
     </div>
   </div>
 
+  <!-- ================= 面板二：分类预测（迭代二） ================= -->
+  <div class="layout panel" id="panel-class">
+    <div>
+      <div class="card">
+        <h2><span class="dot"></span>问题输入</h2>
+        <div class="input-wrap">
+          <textarea id="class-input" placeholder="例如：预测用户 42 对电影 200 是否会给出不低于 4 分的评分（用两种算法对照）"></textarea>
+          <button class="btn-primary" id="class-submit">提交</button>
+        </div>
+        <div class="param-row">
+          <label>目标 UserID</label><input id="class-user" type="number" value="42" />
+          <label>目标 MovieID</label><input id="class-movie" type="number" value="200" />
+          <label>预测时点</label>
+          <select id="class-at"><option value="T2" selected>T2（验证期截止）</option><option value="T1">T1（训练期截止）</option></select>
+        </div>
+        <div class="quick-asks">
+          <button data-q="用逻辑回归和决策树对照，预测用户 {user} 对电影 {movie} 是否会给出不低于 4 分的评分">两算法对照预测</button>
+          <button data-q="用决策树预测用户 {user} 对电影 {movie} 的高分概率">仅决策树</button>
+        </div>
+        <div class="info-box" id="class-overview-info">正在加载已登记模型概览…</div>
+      </div>
+      <div class="card" style="margin-top:20px;">
+        <h2><span class="dot"></span>执行情况</h2>
+        <div class="status-line" id="class-status"></div>
+        <div class="task-id-line" id="class-taskId" style="display:none;"></div>
+        <ul class="timeline" id="class-timeline"></ul>
+      </div>
+      <div class="card" style="margin-top:20px;">
+        <h2><span class="dot"></span>Agent 解释</h2>
+        <div class="empty" id="class-answerEmpty">提交任务后，这里将展示 Agent 的分析与解释。</div>
+        <div class="answer" id="class-answer" style="display:none;"></div>
+        <div class="error-box" id="class-error" style="display:none;"></div>
+      </div>
+    </div>
+    <div>
+      <div class="card">
+        <h2><span class="dot"></span>分类预测结果</h2>
+        <div class="empty" id="class-empty">提交预测任务后显示结果（未指定算法时自动两种对照）。</div>
+        <div id="class-results"></div>
+      </div>
+      <div class="card" style="margin-top:20px;">
+        <h2><span class="dot"></span>实验对照（两种算法）</h2>
+        <div id="class-compare"><div class="empty" style="padding:16px 0;">暂无对照数据</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 面板三：用户聚类（迭代二） ================= -->
+  <div class="layout panel" id="panel-cluster">
+    <div>
+      <div class="card">
+        <h2><span class="dot"></span>问题输入</h2>
+        <div class="input-wrap">
+          <textarea id="cluster-input" placeholder="例如：查询用户 42 的群体归属，并用两种聚类算法对照"></textarea>
+          <button class="btn-primary" id="cluster-submit">提交</button>
+        </div>
+        <div class="param-row">
+          <label>用户或集合</label><input id="cluster-users" type="text" value="42" style="width:160px;" placeholder="42 / 1,2,3 / 1-100" />
+        </div>
+        <div class="quick-asks">
+          <button data-q="用 KMeans 和 DBSCAN 对照，查询用户 {users} 的群体归属">两算法对照</button>
+          <button data-q="用 DBSCAN 查询用户 {users} 的群体归属，标记是否为噪声点">DBSCAN 噪声点识别</button>
+        </div>
+        <div class="info-box" id="cluster-overview-info">正在加载已登记模型概览…</div>
+      </div>
+      <div class="card" style="margin-top:20px;">
+        <h2><span class="dot"></span>执行情况</h2>
+        <div class="status-line" id="cluster-status"></div>
+        <div class="task-id-line" id="cluster-taskId" style="display:none;"></div>
+        <ul class="timeline" id="cluster-timeline"></ul>
+      </div>
+      <div class="card" style="margin-top:20px;">
+        <h2><span class="dot"></span>Agent 解释</h2>
+        <div class="empty" id="cluster-answerEmpty">提交任务后，这里将展示 Agent 的分析与解释。</div>
+        <div class="answer" id="cluster-answer" style="display:none;"></div>
+        <div class="error-box" id="cluster-error" style="display:none;"></div>
+      </div>
+    </div>
+    <div>
+      <div class="card">
+        <h2><span class="dot"></span>群体归属结果</h2>
+        <div class="empty" id="cluster-empty">提交查询后显示用户群体归属、群体摘要与噪声点标记。</div>
+        <div id="cluster-results"></div>
+      </div>
+      <div class="card" style="margin-top:20px;">
+        <h2><span class="dot"></span>实验对照（两种算法）</h2>
+        <div id="cluster-compare"><div class="empty" style="padding:16px 0;">暂无对照数据</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 面板四：降维分析（迭代二） ================= -->
+  <div class="layout panel" id="panel-dim">
+    <div>
+      <div class="card">
+        <h2><span class="dot"></span>问题输入</h2>
+        <div class="input-wrap">
+          <textarea id="dim-input" placeholder="例如：用 PCA 和 SVD 压缩用户画像到 50 维，比较信息保留、聚类质量和资源开销"></textarea>
+          <button class="btn-primary" id="dim-submit">提交</button>
+        </div>
+        <div class="param-row">
+          <label>目标维数</label>
+          <select id="dim-target">
+            <option value="">默认（50 维）</option>
+            <option value="2">2（二维可视化）</option>
+            <option value="10">10</option>
+            <option value="20">20</option>
+            <option value="50">50</option>
+          </select>
+        </div>
+        <div class="quick-asks">
+          <button data-q="用 PCA 和 SVD 对照，压缩用户偏好画像到 {dim} 维，比较信息保留情况、降维前后的聚类质量和资源开销">PCA/SVD 对照</button>
+          <button data-q="用 PCA 压缩用户画像到 2 维，并说明二维散点图">PCA 二维可视化</button>
+          <button data-q="用 SVD 压缩用户画像到 2 维，并说明二维散点图">SVD 二维可视化</button>
+        </div>
+        <div class="info-box" id="dim-overview-info">正在加载已登记模型概览…</div>
+      </div>
+      <div class="card" style="margin-top:20px;">
+        <h2><span class="dot"></span>执行情况</h2>
+        <div class="status-line" id="dim-status"></div>
+        <div class="task-id-line" id="dim-taskId" style="display:none;"></div>
+        <ul class="timeline" id="dim-timeline"></ul>
+      </div>
+      <div class="card" style="margin-top:20px;">
+        <h2><span class="dot"></span>Agent 解释</h2>
+        <div class="empty" id="dim-answerEmpty">提交任务后，这里将展示 Agent 的分析与解释。</div>
+        <div class="answer" id="dim-answer" style="display:none;"></div>
+        <div class="error-box" id="dim-error" style="display:none;"></div>
+      </div>
+    </div>
+    <div>
+      <div class="card">
+        <h2><span class="dot"></span>降维结果（信息保留 / 聚类对照 / 资源开销）</h2>
+        <div class="empty" id="dim-empty">提交降维查询后显示结果。</div>
+        <div id="dim-results"></div>
+      </div>
+      <div class="card" style="margin-top:20px;">
+        <h2><span class="dot"></span>二维可视化（用户画像散点）</h2>
+        <div class="scatter-box"><canvas id="scatterChart"></canvas></div>
+        <div class="empty" id="scatterEmpty" style="padding:12px 0;">提交 2 维降维查询后显示散点图（按 KMeans 群体着色，灰色为 DBSCAN 噪声点）</div>
+      </div>
+      <div class="card" style="margin-top:20px;">
+        <h2><span class="dot"></span>实验对照（两种算法）</h2>
+        <div id="dim-compare"><div class="empty" style="padding:16px 0;">暂无对照数据</div></div>
+      </div>
+    </div>
+  </div>
+
   <script>
     const $ = (id) => document.getElementById(id);
-    let history = []; // 对话历史 [{role, content}]
-    let radarChart = null, barChart = null;
-
-    // ---- Markdown 渲染 ----
     marked.setOptions({ breaks: true, gfm: true });
 
-    // ---- 状态控制 ----
-    function setStatus(state, text) {
-      const line = $('statusLine');
+    // ================= 面板切换 =================
+    document.querySelectorAll('.nav button').forEach((b) => {
+      b.addEventListener('click', () => {
+        document.querySelectorAll('.nav button').forEach((x) => x.classList.remove('active'));
+        b.classList.add('active');
+        const name = b.dataset.panel;
+        document.querySelectorAll('.panel').forEach((p) => {
+          p.classList.toggle('active', p.id === 'panel-' + name);
+        });
+        if (name === 'class') loadClassOverview();
+        if (name === 'cluster') loadClusterOverview();
+        if (name === 'dim') loadDimOverview();
+      });
+    });
+
+    // ================= 通用：状态 / 时间线 / 提交 =================
+    function setStatus(prefix, state, text) {
+      const line = $(prefix + '-status');
       line.innerHTML = '';
       const textEl = document.createElement('span');
-      textEl.id = 'statusText';
       textEl.style.color = 'var(--text-light)';
       textEl.textContent = text;
       line.appendChild(textEl);
-
       if (state === 'running') {
         const sp = document.createElement('div');
         sp.className = 'spinner';
         line.insertBefore(sp, line.firstChild);
-        textEl.style.color = 'var(--text-light)';
       } else if (state === 'done') {
         const b = document.createElement('span');
         b.className = 'badge badge-done'; b.textContent = '已完成';
@@ -339,19 +571,54 @@
         b.className = 'badge badge-fail'; b.textContent = '失败';
         line.insertBefore(b, line.firstChild);
       }
-      $('statusText').textContent = text;
     }
 
-    function renderTimeline(steps) {
-      const tl = $('timeline');
+    const TOOL_META = {
+      score_data: { icon: 'S', cls: 'icon-score', title: '五维质量评分' },
+      clean_data: { icon: 'C', cls: 'icon-clean', title: '数据清洗' },
+      read_quarantine_samples: { icon: 'Q', cls: 'icon-sample', title: '读取隔离样例' },
+      classify_predict_logreg: { icon: 'L', cls: 'icon-class', title: '分类预测（逻辑回归）' },
+      classify_predict_dtree: { icon: 'D', cls: 'icon-class', title: '分类预测（决策树）' },
+      cluster_query_kmeans: { icon: 'K', cls: 'icon-cluster', title: '聚类查询（KMeans）' },
+      cluster_query_dbscan: { icon: 'B', cls: 'icon-cluster', title: '聚类查询（DBSCAN）' },
+      reduce_query_pca: { icon: 'P', cls: 'icon-dim', title: '降维查询（PCA）' },
+      reduce_query_svd: { icon: 'V', cls: 'icon-dim', title: '降维查询（SVD）' },
+      ml_registry_status: { icon: 'R', cls: 'icon-reg', title: '注册表状态查询' },
+    };
+
+    function stepSummary(s) {
+      const r = s.result || {};
+      if (r.status === 'failed' || r.status === 'unavailable' || r.status === 'error') {
+        return { text: '失败：' + (r.message || r.stderr || '未知错误'), color: 'var(--danger)' };
+      }
+      const t = s.tool;
+      if (t === 'score_data') {
+        const sc = r.scores || {};
+        return { text: '综合分 ' + (sc.Overall ?? '-') + ' · 输入 ' + (s.args.input_path || '') };
+      }
+      if (t === 'clean_data') return { text: '修复 ' + r.fixed + ' · 去重 ' + r.dedup + ' · 隔离 ' + r.quarantine };
+      if (t === 'read_quarantine_samples') return { text: '读取 ' + (Array.isArray(r) ? r.length : 0) + ' 条样例' };
+      if (t.startsWith('classify_predict')) {
+        return { text: 'user ' + s.args.user_id + ' · movie ' + s.args.movie_id +
+          ' → 正类概率 ' + (r.prob_positive ?? '-') + (r.prediction === 1 ? '（≥4分）' : '（<4分）') };
+      }
+      if (t.startsWith('cluster_query')) {
+        const done = (r.users || []).filter(u => u.status === 'clustered').length;
+        return { text: '查询 ' + (r.queried_users ?? '-') + ' 个用户 · ' + done + ' 个命中群体' };
+      }
+      if (t.startsWith('reduce_query')) {
+        return { text: '维数 ' + (r.params && r.params.n_components) +
+          ' · 方差解释率 ' + (r.retention ? r.retention.explained_variance_ratio : '-') };
+      }
+      if (t === 'ml_registry_status') return { text: '登记模型 ' + (r.entries ? r.entries.length : 0) + ' 个' };
+      return { text: '完成' };
+    }
+
+    function renderTimeline(prefix, steps) {
+      const tl = $(prefix + '-timeline');
       tl.innerHTML = '';
-      const meta = {
-        score_data: { icon: 'S', cls: 'icon-score', title: '五维质量评分' },
-        clean_data: { icon: 'C', cls: 'icon-clean', title: '数据清洗' },
-        read_quarantine_samples: { icon: 'Q', cls: 'icon-sample', title: '读取隔离样例' },
-      };
       steps.forEach((s) => {
-        const m = meta[s.tool] || { icon: '?', cls: 'icon-score', title: s.tool };
+        const m = TOOL_META[s.tool] || { icon: '?', cls: 'icon-score', title: s.tool };
         const li = document.createElement('li');
         const icon = document.createElement('div');
         icon.className = 'icon ' + m.cls;
@@ -363,35 +630,120 @@
         title.textContent = m.title;
         const meta2 = document.createElement('div');
         meta2.className = 'step-meta';
-        const r = s.result || {};
-        if (r.status === 'failed' || r.status === 'error') {
-          meta2.textContent = '失败：' + (r.message || r.stderr || '未知错误');
-          meta2.style.color = 'var(--danger)';
-        } else if (s.tool === 'score_data') {
-          const sc = r.scores || {};
-          meta2.textContent = '综合分 ' + (sc.Overall ?? '-') + ' · 输入 ' + (s.args.input_path || '');
-        } else if (s.tool === 'clean_data') {
-          meta2.textContent = '修复 ' + r.fixed + ' · 去重 ' + r.dedup + ' · 隔离 ' + r.quarantine;
-        } else {
-          meta2.textContent = '读取 ' + (Array.isArray(r) ? r.length : 0) + ' 条样例';
-        }
+        const sum = stepSummary(s);
+        meta2.textContent = sum.text;
+        if (sum.color) meta2.style.color = sum.color;
         body.appendChild(title); body.appendChild(meta2);
         li.appendChild(icon); li.appendChild(body);
         tl.appendChild(li);
       });
     }
 
-    // ---- 图表 ----
+    // 每个面板独立的对话历史（追问不跨面板串扰）
+    const histories = { clean: [], class: [], cluster: [], dim: [] };
+
+    async function submitPanel(prefix, message) {
+      const btn = $(prefix + '-submit');
+      btn.disabled = true;
+      setStatus(prefix, 'running', 'Agent 正在执行任务…');
+      $(prefix + '-timeline').innerHTML = '';
+      $(prefix + '-error').style.display = 'none';
+      $(prefix + '-answer').style.display = 'none';
+      $(prefix + '-answerEmpty').style.display = 'block';
+      $(prefix + '-answerEmpty').textContent = '正在处理，请稍候…';
+      try {
+        const resp = await fetch('/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message, history: histories[prefix] }),
+        });
+        const data = await resp.json();
+        histories[prefix].push({ role: 'user', content: message });
+        histories[prefix].push({ role: 'assistant', content: data.answer });
+        renderTimeline(prefix, data.steps || []);
+        if (data.status === 'failed') {
+          setStatus(prefix, 'fail', '任务执行失败');
+          $(prefix + '-error').style.display = 'block';
+          $(prefix + '-error').textContent = data.answer;
+          $(prefix + '-answerEmpty').style.display = 'none';
+        } else {
+          setStatus(prefix, 'done', '任务完成');
+          $(prefix + '-answerEmpty').style.display = 'none';
+          $(prefix + '-answer').style.display = 'block';
+          $(prefix + '-answer').innerHTML = marked.parse(data.answer);
+        }
+        if (data.task_id) {
+          $(prefix + '-taskId').style.display = 'block';
+          $(prefix + '-taskId').textContent = '任务 ID：' + data.task_id;
+        }
+        // 面板专属渲染
+        const handlers = {
+          clean: () => renderCleanResults(data.steps || []),
+          class: () => renderClassResults(data.steps || []),
+          cluster: () => renderClusterResults(data.steps || []),
+          dim: () => renderDimResults(data.steps || []),
+        };
+        handlers[prefix]();
+      } catch (e) {
+        setStatus(prefix, 'fail', '请求失败');
+        $(prefix + '-error').style.display = 'block';
+        $(prefix + '-error').textContent = '请求出错：' + e.message;
+        $(prefix + '-answerEmpty').style.display = 'none';
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function quickMessage(prefix, tpl) {
+      if (prefix === 'class') {
+        let msg = tpl.replaceAll('{user}', $('class-user').value)
+                     .replaceAll('{movie}', $('class-movie').value);
+        if ($('class-at').value === 'T1') msg += '（预测时点 T1）';
+        return msg;
+      }
+      if (prefix === 'cluster') {
+        return tpl.replaceAll('{users}', $('cluster-users').value.trim() || '42');
+      }
+      if (prefix === 'dim') {
+        return tpl.replaceAll('{dim}', $('dim-target').value || '50');
+      }
+      return tpl;
+    }
+
+    function wirePanel(prefix) {
+      $(prefix + '-submit').addEventListener('click', () => {
+        const v = $(prefix + '-input').value.trim();
+        if (v) submitPanel(prefix, v);
+      });
+      $(prefix + '-input').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+          const v = $(prefix + '-input').value.trim();
+          if (v) submitPanel(prefix, v);
+        }
+      });
+      const qa = document.querySelectorAll('#panel-' + prefix + ' .quick-asks button');
+      qa.forEach((b) => b.addEventListener('click', () => {
+        submitPanel(prefix, quickMessage(prefix, b.dataset.q));
+      }));
+      setStatus(prefix, 'idle', '等待任务…');
+    }
+
+    // ================= 面板一：清洗（迭代一逻辑） =================
+    let radarChart = null, barChart = null;
     const DIMS = ['Accurate', 'Complete', 'Unique', 'Up-to-date', 'Consistent'];
+
+    function renderCleanResults(steps) {
+      renderStats(steps);
+      const { before, after } = extractScores(steps);
+      if (before && after) renderCharts(before, after);
+      loadHistory();
+    }
+
     function renderCharts(before, after) {
       $('chartEmpty').style.display = 'none';
-      const radarCtx = $('radarChart').getContext('2d');
-      const barCtx = $('barChart').getContext('2d');
-
       if (radarChart) radarChart.destroy();
       if (barChart) barChart.destroy();
-
-      radarChart = new Chart(radarCtx, {
+      radarChart = new Chart($('radarChart').getContext('2d'), {
         type: 'radar',
         data: {
           labels: DIMS,
@@ -408,8 +760,7 @@
           plugins: { legend: { position: 'bottom' } },
         },
       });
-
-      barChart = new Chart(barCtx, {
+      barChart = new Chart($('barChart').getContext('2d'), {
         type: 'bar',
         data: {
           labels: DIMS,
@@ -437,7 +788,6 @@
         }
         if (s.tool === 'clean_data' && s.result) clean = s.result;
       });
-
       const items = [
         { num: before ? (before.counts.total ?? '-') : '-', lbl: '清洗前记录数' },
         { num: after ? (after.counts.total ?? '-') : '-', lbl: '清洗后记录数' },
@@ -465,79 +815,8 @@
       return { before, after };
     }
 
-    // ---- 提交 ----
-    async function submit(message) {
-      const btn = $('submit');
-      btn.disabled = true;
-      setStatus('running', 'Agent 正在执行任务…');
-      $('timeline').innerHTML = '';
-      $('errorBox').style.display = 'none';
-      $('answer').style.display = 'none';
-      $('answerEmpty').style.display = 'block';
-      $('answerEmpty').textContent = '正在处理，请稍候（MapReduce 作业运行中）…';
-
-      try {
-        const resp = await fetch('/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message, history }),
-        });
-        const data = await resp.json();
-
-        history.push({ role: 'user', content: message });
-        history.push({ role: 'assistant', content: data.answer });
-
-        renderTimeline(data.steps);
-        renderStats(data.steps);
-        const { before, after } = extractScores(data.steps);
-        if (before && after) renderCharts(before, after);
-
-        if (data.status === 'failed') {
-          setStatus('fail', '任务执行失败');
-          $('errorBox').style.display = 'block';
-          $('errorBox').textContent = data.answer;
-          $('answerEmpty').style.display = 'none';
-        } else {
-          setStatus('done', '任务完成');
-          $('answerEmpty').style.display = 'none';
-          $('answer').style.display = 'block';
-          $('answer').innerHTML = marked.parse(data.answer);
-        }
-
-        // 显示任务 ID
-        if (data.task_id) {
-          $('taskIdLine').style.display = 'block';
-          $('taskIdLine').textContent = '任务 ID：' + data.task_id;
-        }
-        // 任务完成后刷新历史报告列表
-        loadHistory();
-      } catch (e) {
-        setStatus('fail', '请求失败');
-        $('errorBox').style.display = 'block';
-        $('errorBox').textContent = '请求出错：' + e.message;
-        $('answerEmpty').style.display = 'none';
-      } finally {
-        btn.disabled = false;
-      }
-    }
-
-    $('submit').addEventListener('click', () => {
-      const v = $('input').value.trim();
-      if (v) submit(v);
-    });
-    $('input').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-        const v = $('input').value.trim();
-        if (v) submit(v);
-      }
-    });
-    document.querySelectorAll('.quick-asks button').forEach((b) => {
-      b.addEventListener('click', () => submit(b.dataset.q));
-    });
-
-    // ---- 结果获取 ----
+    // 清洗面板：结果获取
     let sampleMode = 'clean';
-
     async function loadSamples() {
       try {
         const resp = await fetch('/samples');
@@ -546,7 +825,6 @@
           $('sampleBox').textContent = data.message;
           return;
         }
-        // 更新记录数标签
         const cc = data.clean_counts || {};
         $('countTags').innerHTML = `
           <span class="tag">ratings: <b>${cc.ratings ?? '-'}</b></span>
@@ -554,7 +832,6 @@
           <span class="tag">movies: <b>${cc.movies ?? '-'}</b></span>
           <span class="tag">合计: <b>${cc.total ?? '-'}</b></span>
         `;
-        // 更新样例
         const list = sampleMode === 'clean' ? data.clean_samples : data.quarantine_samples;
         $('sampleBox').textContent = (list && list.length)
           ? list.join('\n')
@@ -564,41 +841,6 @@
       }
     }
 
-    document.querySelectorAll('.sample-tabs button').forEach((b) => {
-      b.addEventListener('click', () => {
-        sampleMode = b.dataset.mode;
-        document.querySelectorAll('.sample-tabs button').forEach((x) => x.classList.remove('active'));
-        b.classList.add('active');
-        loadSamples();
-      });
-    });
-
-    $('btnRefresh').addEventListener('click', loadSamples);
-
-    $('btnReport').addEventListener('click', async () => {
-      try {
-        const resp = await fetch('/report');
-        const data = await resp.json();
-        if (data.status === 'failed') {
-          alert(data.message);
-          return;
-        }
-        const blob = new Blob([JSON.stringify(data.report, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'evaluation_report.json';
-        a.click();
-        URL.revokeObjectURL(url);
-      } catch (e) {
-        alert('下载失败：' + e.message);
-      }
-    });
-
-    // 页面加载后自动刷新一次样例（若已有结果）
-    loadSamples();
-
-    // ---- 历史报告 ----
     async function loadHistory() {
       try {
         const resp = await fetch('/reports');
@@ -623,24 +865,436 @@
       try {
         const resp = await fetch('/report-file/' + encodeURIComponent(filename));
         const data = await resp.json();
-        if (data.status !== 'completed') {
-          alert(data.message || '读取失败');
-          return;
-        }
+        if (data.status !== 'completed') { alert(data.message || '读取失败'); return; }
         const blob = new Blob([JSON.stringify(data.report, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.click();
+        a.href = url; a.download = filename; a.click();
         URL.revokeObjectURL(url);
+      } catch (e) { alert('查看失败：' + e.message); }
+    }
+
+    // ================= 迭代二：注册表概览 =================
+    let overviewCache = null;
+
+    async function loadOverview(force) {
+      if (overviewCache && !force) return overviewCache;
+      try {
+        const resp = await fetch('/ml/overview');
+        const data = await resp.json();
+        if (data.status === 'completed') overviewCache = data;
+        else overviewCache = null;
+      } catch (e) { overviewCache = null; }
+      return overviewCache;
+    }
+
+    function fmtSplit(ov) {
+      if (!ov || !ov.meta || !ov.meta.split_sizes) return '';
+      const s = ov.meta.split_sizes;
+      return '数据切分（按时间）：训练 ≤T1 ' + (s.ratings_train ?? '-') + ' 条 · 验证 (T1,T2] ' +
+        (s.ratings_val ?? '-') + ' 条 · 测试 >T2 ' + (s.ratings_test ?? '-') + ' 条';
+    }
+
+    async function loadClassOverview() {
+      const ov = await loadOverview();
+      const box = $('class-overview-info');
+      if (!ov || !ov.classification) {
+        box.textContent = '机器学习模型尚未登记（请先运行 scripts/train-ml.ps1 预训练），查询时将返回明确状态。';
+        return;
+      }
+      const c = ov.classification;
+      const bits = [];
+      for (const key of ['logreg', 'dtree']) {
+        const e = c[key];
+        if (!e) continue;
+        const name = key === 'logreg' ? '逻辑回归' : '决策树';
+        bits.push(name + ' ' + e.version + '（参数 ' + JSON.stringify(e.params) +
+          '；验证 PR-AUC ' + (e.metrics.val.pr_auc ?? '-') + ' / F1 ' + (e.metrics.val.f1 ?? '-') +
+          '；测试 PR-AUC ' + (e.metrics.test.pr_auc ?? '-') + ' / F1 ' + (e.metrics.test.f1 ?? '-') + '）');
+      }
+      box.innerHTML = '✅ 已登记：' + bits.join('<br>') + '<br>' + fmtSplit(ov) +
+        '<br>标签定义：评分 ≥4 为正类（1-3 为负类）。';
+    }
+
+    async function loadClusterOverview() {
+      const ov = await loadOverview();
+      const box = $('cluster-overview-info');
+      if (!ov || !ov.clustering) {
+        box.textContent = '机器学习模型尚未登记（请先运行 scripts/train-ml.ps1 预训练），查询时将返回明确状态。';
+        return;
+      }
+      const c = ov.clustering;
+      const bits = [];
+      if (c.kmeans) {
+        const g = c.kmeans.grid || [];
+        const gg = g.map(x => 'k=' + x.k + ' 验证轮廓 ' + x.val.silhouette + ' / 测试轮廓 ' + x.test.silhouette).join('；');
+        bits.push('KMeans ' + c.kmeans.version + '（已登记 k=' + (c.kmeans.param_grid.kmeans || []).join('/') + '；最优 k=' + c.kmeans.params.k + '）' + gg);
+      }
+      if (c.dbscan) {
+        const g = c.dbscan.grid || [];
+        const gg = g.map(x => 'eps=' + x.eps + ',ms=' + x.min_samples + ' 验证噪声 ' + x.val.noise_ratio).join('；');
+        bits.push('DBSCAN ' + c.dbscan.version + '（最优 eps=' + c.dbscan.params.eps + ', min_samples=' + c.dbscan.params.min_samples + '）' + gg);
+      }
+      box.innerHTML = '✅ 已登记：' + bits.join('<br>') + '<br>' + fmtSplit(ov) +
+        '<br>画像：训练期 user×movie 稀疏画像（未评分=0），余弦空间。';
+    }
+
+    async function loadDimOverview() {
+      const ov = await loadOverview();
+      const box = $('dim-overview-info');
+      if (!ov || !ov.dimension_reduction) {
+        box.textContent = '机器学习模型尚未登记（请先运行 scripts/train-ml.ps1 预训练），查询时将返回明确状态。';
+        return;
+      }
+      const d = ov.dimension_reduction;
+      const bits = [];
+      for (const key of ['pca', 'svd']) {
+        const e = d[key];
+        if (!e) continue;
+        const v50 = (e.variants || []).find(v => v.n_components === 50);
+        bits.push((key === 'pca' ? 'PCA' : 'SVD') + ' ' + e.version +
+          '（已登记维数 ' + (e.dims || []).join('/') +
+          '；50 维方差解释率 ' + (v50 ? v50.retention.explained_variance_ratio : '-') +
+          ' / 重构误差 ' + (v50 ? v50.retention.recon_error_fro : '-') +
+          ' / 拟合耗时 ' + (v50 ? v50.resource.fit_time_s : '-') + 's）');
+      }
+      box.innerHTML = '✅ 已登记：' + bits.join('<br>') + '<br>' + fmtSplit(ov);
+    }
+
+    // ================= 面板二：分类渲染 =================
+    function renderClassResults(steps) {
+      const done = steps.filter(s => s.tool.startsWith('classify_predict') && s.result);
+      if (done.length === 0) return;
+      const container = $('class-results');
+      container.innerHTML = '';
+      $('class-empty').style.display = 'none';
+
+      const failures = done.filter(s => s.result.status !== 'completed');
+      failures.forEach((s) => {
+        const div = document.createElement('div');
+        div.className = 'error-box';
+        div.textContent = (s.result.message || '预测失败') + '（算法：' + (s.tool.includes('logreg') ? '逻辑回归' : '决策树') + '）';
+        container.appendChild(div);
+      });
+
+      const items = [];
+      done.filter(s => s.result.status === 'completed').forEach((s) => {
+        const r = s.result;
+        if (r.comparison) { r.comparison.forEach(c => items.push(c)); return; }
+        items.push(r);
+      });
+
+      const cards = document.createElement('div');
+      cards.className = 'algo-cards';
+      items.forEach((r) => {
+        const card = document.createElement('div');
+        card.className = 'algo-card';
+        const pos = r.prediction === 1;
+        card.innerHTML = `
+          <h3>${r.algorithm === 'logistic_regression' ? '🔹 逻辑回归' : '🌳 决策树'}　<span class="pill ${pos ? 'pill-pos' : 'pill-neg'}">${pos ? '预测 ≥4 分' : '预测 <4 分'}</span></h3>
+          <div>用户 ${r.target.user_id} × 电影 ${r.target.movie_id}（${esc(r.target.movie_title || '')}）</div>
+          <div class="kv">预测时点：<b>${r.at_time}</b>　·　阈值 0.5</div>
+          <div class="prob">${(r.prob_positive * 100).toFixed(1)}%</div>
+          <div class="kv">正类（≥4 分）概率</div>
+          <div class="prob-bar"><div style="width:${Math.min(100, r.prob_positive * 100)}%"></div></div>
+          <div class="kv">模型版本：<b>${r.model_version}</b></div>
+          <div class="kv">参数：<b>${JSON.stringify(r.params)}</b></div>
+          <div class="kv">评价指标：验证 PR-AUC <b>${r.eval_metrics.val.pr_auc ?? '-'}</b> / F1 <b>${r.eval_metrics.val.f1 ?? '-'}</b>；测试 PR-AUC <b>${r.eval_metrics.test.pr_auc ?? '-'}</b> / F1 <b>${r.eval_metrics.test.f1 ?? '-'}</b></div>
+          ${(r.notes || []).length ? '<ul class="note-list">' + r.notes.map(n => `<li>${esc(n)}</li>`).join('') + '</ul>' : ''}
+        `;
+        cards.appendChild(card);
+      });
+      container.appendChild(cards);
+      loadClassCompare();
+    }
+
+    async function loadClassCompare() {
+      const ov = await loadOverview();
+      const box = $('class-compare');
+      if (!ov || !ov.classification) {
+        box.innerHTML = '<div class="empty" style="padding:12px 0;">模型未登记，暂无对照数据</div>';
+        return;
+      }
+      const c = ov.classification;
+      const rows = [];
+      for (const key of ['logreg', 'dtree']) {
+        const e = c[key];
+        if (!e) continue;
+        rows.push(`<tr>
+          <td>${key === 'logreg' ? '逻辑回归' : '决策树'}</td>
+          <td>${e.version}</td>
+          <td>${JSON.stringify(e.params)}</td>
+          <td class="num">${e.metrics.val.pr_auc}</td><td class="num">${e.metrics.val.f1}</td>
+          <td class="num">${e.metrics.test.pr_auc}</td><td class="num">${e.metrics.test.f1}</td>
+        </tr>`);
+      }
+      box.innerHTML = `
+        <table class="tbl">
+          <tr><th>算法</th><th>版本</th><th>参数</th><th>验证 PR-AUC</th><th>验证 F1</th><th>测试 PR-AUC</th><th>测试 F1</th></tr>
+          ${rows.join('')}
+        </table>
+        <div class="kv" style="font-size:12px;color:var(--text-light);">${fmtSplit(ov)}</div>`;
+    }
+
+    // ================= 面板三：聚类渲染 =================
+    function renderClusterResults(steps) {
+      const done = steps.filter(s => s.tool.startsWith('cluster_query') && s.result);
+      if (done.length === 0) return;
+      const container = $('cluster-results');
+      container.innerHTML = '';
+      $('cluster-empty').style.display = 'none';
+
+      done.forEach((s) => {
+        const r = s.result;
+        const isK = s.tool.includes('kmeans');
+        const name = isK ? 'KMeans' : 'DBSCAN';
+        if (r.status !== 'completed') {
+          const div = document.createElement('div');
+          div.className = 'error-box';
+          div.textContent = name + '：' + (r.message || '查询失败');
+          container.appendChild(div);
+          return;
+        }
+        const sec = document.createElement('div');
+        sec.style.marginBottom = '18px';
+        let rows = (r.users || []).map((u) => {
+          let tag = '';
+          if (u.status === 'unknown') tag = '<span class="pill pill-warn">未知 ID</span>';
+          else if (u.status === 'no_profile') tag = '<span class="pill pill-warn">训练期无评分</span>';
+          else if (u.noise) tag = '<span class="pill pill-noise">噪声点</span>';
+          else tag = '<span class="pill pill-pos">群体 ' + u.cluster + '</span>';
+          const low = u.low_history ? ' <span class="pill pill-warn" title="' + esc(u.low_history_note || '') + '">历史不足</span>' : '';
+          return `<tr><td class="num">${u.user_id}</td><td>${tag}${low}</td><td>${esc(u.message || '')}</td></tr>`;
+        }).join('');
+        let groupRows = '';
+        if (r.groups && r.groups.length) {
+          groupRows = r.groups.map((g) => `
+            <tr><td class="num">${g.cluster_id}</td><td class="num">${g.size}</td>
+            <td class="num">${g.avg_rating ?? '-'}</td>
+            <td>${(g.top_genres || []).map(x => typeof x === 'string' ? esc(x) : esc(x.genre) + '(' + (x.delta >= 0 ? '+' : '') + x.delta + ')').join('、')}</td>
+            <td>${(g.top_movies || []).map(m => esc(m.title)).join('；')}</td></tr>`).join('');
+        }
+        const kv = `
+          <div class="kv" style="font-size:12px;color:var(--text-light);margin:4px 0;">
+            版本 ${r.version} · 参数 ${JSON.stringify(r.params)} ·
+            ${isK ? '' : '噪声点支持 ✓ · '}验证轮廓系数 ${r.eval_metrics.val.silhouette ?? '-'}（测试 ${r.eval_metrics.test.silhouette ?? '-'}）
+          </div>`;
+        sec.innerHTML = `<h3 style="font-size:14px;margin-bottom:6px;">${isK ? '🟦 KMeans' : '🟣 DBSCAN'}（${r.queried_users} 个查询用户）</h3>${kv}
+          <table class="tbl"><tr><th>UserID</th><th>归属</th><th>说明</th></tr>${rows}</table>
+          ${groupRows ? `<div style="font-size:13px;font-weight:600;margin:10px 0 4px;">涉及群体的摘要：</div>
+          <div class="scroll-table"><table class="tbl">
+            <tr><th>群体</th><th>人数</th><th>平均评分</th><th>类型偏好</th><th>代表电影</th></tr>${groupRows}
+          </table></div>` : ''}`;
+        container.appendChild(sec);
+      });
+      loadClusterCompare();
+    }
+
+    async function loadClusterCompare() {
+      const ov = await loadOverview();
+      const box = $('cluster-compare');
+      if (!ov || !ov.clustering) {
+        box.innerHTML = '<div class="empty" style="padding:12px 0;">模型未登记，暂无对照数据</div>';
+        return;
+      }
+      const c = ov.clustering;
+      let html = '';
+      if (c.kmeans && c.kmeans.grid) {
+        html += `<div style="font-size:13px;font-weight:600;">KMeans 参数网格（验证期选参，测试期最终评价）</div>
+          <table class="tbl"><tr><th>k</th><th>训练轮廓</th><th>验证轮廓</th><th>测试轮廓</th><th>SSE(训练)</th></tr>
+          ${c.kmeans.grid.map(g => `<tr><td class="num">${g.k}</td><td class="num">${g.train.silhouette}</td><td class="num">${g.val.silhouette}</td><td class="num">${g.test.silhouette}</td><td class="num">${g.train.sse}</td></tr>`).join('')}
+          </table>`;
+      }
+      if (c.dbscan && c.dbscan.grid) {
+        html += `<div style="font-size:13px;font-weight:600;margin-top:10px;">DBSCAN 参数网格</div>
+          <table class="tbl"><tr><th>eps</th><th>min_samples</th><th>验证轮廓</th><th>验证簇数</th><th>验证噪声比</th><th>测试噪声比</th></tr>
+          ${c.dbscan.grid.map(g => `<tr><td class="num">${g.eps}</td><td class="num">${g.min_samples}</td><td class="num">${g.val.silhouette}</td><td class="num">${g.val.n_clusters}</td><td class="num">${g.val.noise_ratio}</td><td class="num">${g.test.noise_ratio}</td></tr>`).join('')}
+          </table>`;
+      }
+      html += `<div class="kv" style="font-size:12px;color:var(--text-light);margin-top:6px;">${fmtSplit(ov)}<br>画像口径：训练期 user×movie 稀疏画像，余弦空间；验证期画像选参、测试期画像最终评价。</div>`;
+      box.innerHTML = html;
+    }
+
+    // ================= 面板四：降维渲染 =================
+    let scatterChart = null;
+    const CLUSTER_COLORS = ['#4f6ef7', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#0ea5e9', '#f43f5e', '#84cc16', '#f97316', '#14b8a6'];
+
+    function renderDimResults(steps) {
+      const done = steps.filter(s => s.tool.startsWith('reduce_query') && s.result);
+      if (done.length === 0) return;
+      const container = $('dim-results');
+      container.innerHTML = '';
+      $('dim-empty').style.display = 'none';
+
+      done.forEach((s) => {
+        const r = s.result;
+        const name = s.tool.includes('pca') ? 'PCA' : 'SVD';
+        if (r.status !== 'completed') {
+          const div = document.createElement('div');
+          div.className = 'error-box';
+          div.textContent = name + '：' + (r.message || '查询失败');
+          container.appendChild(div);
+          return;
+        }
+        const cc = r.cluster_comparison || {};
+        const km = cc.kmeans || {};
+        const db = cc.dbscan || {};
+        const dim = r.params.n_components;
+        const sec = document.createElement('div');
+        sec.style.marginBottom = '20px';
+        sec.innerHTML = `
+          <h3 style="font-size:14px;margin-bottom:6px;">${name === 'PCA' ? '🟥 PCA' : '🟪 SVD'}（${dim} 维，版本 ${r.version}）</h3>
+          <div class="kv" style="font-size:12.5px;color:var(--text-light);margin:2px 0;">原始画像：${r.original_dims.n_users} 用户 × ${r.original_dims.n_movies} 电影（稀疏）</div>
+          <table class="tbl">
+            <tr><th>指标</th><th>数值</th></tr>
+            <tr><td>累计方差解释率（信息保留）</td><td class="num"><b>${(r.retention.explained_variance_ratio * 100).toFixed(1)}%</b></td></tr>
+            <tr><td>重构误差（Frobenius 相对）</td><td class="num">${r.retention.recon_error_fro}</td></tr>
+            <tr><td>拟合耗时</td><td class="num">${r.resource.fit_time_s} s</td></tr>
+            <tr><td>峰值内存（进程 ru_maxrss）</td><td class="num">${r.resource.peak_memory_mb} MB</td></tr>
+            <tr><td>坐标存储（vs 原始矩阵 ${r.resource.original_storage_mb} MB）</td><td class="num">${r.resource.coords_storage_mb} MB</td></tr>
+          </table>
+          <div style="font-size:13px;font-weight:600;margin:10px 0 4px;">降维前后聚类对照（同一参数口径）</div>
+          <table class="tbl">
+            <tr><th>聚类算法</th><th>表示</th><th>轮廓系数</th><th>${name === 'PCA' ? 'SSE' : ''}</th><th>簇数</th><th>噪声比</th></tr>
+            <tr><td>KMeans</td><td>原始画像</td><td class="num">${km.original ? km.original.silhouette : '-'}</td><td class="num">${km.original ? km.original.sse : '-'}</td><td class="num">-</td><td class="num">-</td></tr>
+            <tr><td>KMeans</td><td>${dim} 维坐标</td><td class="num">${km.reduced ? km.reduced.silhouette : '-'}</td><td class="num">${km.reduced ? km.reduced.sse : '-'}</td><td class="num">-</td><td class="num">-</td></tr>
+            <tr><td>DBSCAN</td><td>原始画像</td><td class="num">${db.original ? db.original.silhouette : '-'}</td><td class="num">-</td><td class="num">${db.original ? db.original.n_clusters : '-'}</td><td class="num">${db.original ? db.original.noise_ratio : '-'}</td></tr>
+            <tr><td>DBSCAN</td><td>${dim} 维坐标</td><td class="num">${db.reduced ? db.reduced.silhouette : '-'}</td><td class="num">-</td><td class="num">${db.reduced ? db.reduced.n_clusters : '-'}</td><td class="num">${db.reduced ? db.reduced.noise_ratio : '-'}</td></tr>
+          </table>
+          <div style="font-size:13px;font-weight:600;margin:10px 0 4px;">主要变化方向（|载荷|最高电影）</div>
+          <div class="scroll-table"><table class="tbl">
+            <tr><th>成分</th><th>高载荷电影</th></tr>
+            ${(r.principal_directions || []).map(p => `<tr><td class="num">PC${p.component}</td><td>${p.movies.map(m => esc(m.title) + '（' + m.loading + '）').join('；')}</td></tr>`).join('')}
+          </table></div>
+        `;
+        container.appendChild(sec);
+      });
+
+      // 二维散点：优先 PCA 2D 坐标，否则 SVD 2D
+      const pcaStep = done.find(s => s.tool.includes('pca') && s.result.status === 'completed');
+      const svdStep = done.find(s => s.tool.includes('svd') && s.result.status === 'completed');
+      const source = (pcaStep && pcaStep.result.params.n_components === 2) ? 'pca'
+        : (svdStep && svdStep.result.params.n_components === 2) ? 'svd'
+        : (pcaStep ? 'pca' : (svdStep ? 'svd' : null));
+      if (source) loadScatter(source);
+      loadDimCompare();
+    }
+
+    async function loadScatter(algo) {
+      try {
+        const resp = await fetch('/ml/artifacts/coords/scatter_' + algo + '2d.json');
+        if (!resp.ok) {
+          $('scatterEmpty').style.display = 'block';
+          $('scatterEmpty').textContent = '散点坐标未生成（请先运行训练流水线）';
+          return;
+        }
+        const pts = await resp.json();
+        if (!pts.length) return;
+        $('scatterEmpty').style.display = 'none';
+        if (scatterChart) scatterChart.destroy();
+        const noise = pts.filter(p => p.dbscan_cluster === -1);
+        const main = pts;
+        scatterChart = new Chart($('scatterChart').getContext('2d'), {
+          type: 'scatter',
+          data: {
+            datasets: [
+              {
+                label: '用户（按 KMeans 群体着色）',
+                data: main.map(p => ({ x: p.x, y: p.y })),
+                backgroundColor: main.map(p => CLUSTER_COLORS[((p.kmeans_cluster % 10) + 10) % 10] + '99'),
+                pointRadius: 3.5, pointHoverRadius: 6,
+              },
+              {
+                label: 'DBSCAN 噪声点',
+                data: noise.map(p => ({ x: p.x, y: p.y })),
+                backgroundColor: '#94a3b8',
+                pointRadius: 3.5, pointHoverRadius: 6,
+              },
+            ],
+          },
+          options: {
+            responsive: true, maintainAspectRatio: true,
+            scales: {
+              x: { title: { display: true, text: algo.toUpperCase() + ' Component 1' } },
+              y: { title: { display: true, text: algo.toUpperCase() + ' Component 2' } },
+            },
+            plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } },
+          },
+        });
       } catch (e) {
-        alert('查看失败：' + e.message);
+        $('scatterEmpty').style.display = 'block';
+        $('scatterEmpty').textContent = '散点图加载失败：' + e.message;
       }
     }
 
+    async function loadDimCompare() {
+      const ov = await loadOverview();
+      const box = $('dim-compare');
+      if (!ov || !ov.dimension_reduction) {
+        box.innerHTML = '<div class="empty" style="padding:12px 0;">模型未登记，暂无对照数据</div>';
+        return;
+      }
+      const d = ov.dimension_reduction;
+      let html = `<div style="font-size:13px;font-weight:600;">PCA vs SVD（各维数信息保留与开销）</div>
+        <div class="scroll-table"><table class="tbl">
+        <tr><th>算法</th><th>维数</th><th>方差解释率</th><th>重构误差</th><th>耗时(s)</th><th>峰值内存(MB)</th><th>坐标存储(MB)</th></tr>`;
+      for (const key of ['pca', 'svd']) {
+        const e = d[key];
+        if (!e) continue;
+        for (const v of (e.variants || [])) {
+          html += `<tr><td>${key.toUpperCase()}</td><td class="num">${v.n_components}</td>
+            <td class="num">${(v.retention.explained_variance_ratio * 100).toFixed(1)}%</td>
+            <td class="num">${v.retention.recon_error_fro}</td>
+            <td class="num">${v.resource.fit_time_s}</td>
+            <td class="num">${v.resource.peak_memory_mb}</td>
+            <td class="num">${v.resource.coords_storage_mb}</td></tr>`;
+        }
+      }
+      html += '</table></div>';
+      html += `<div class="kv" style="font-size:12px;color:var(--text-light);margin-top:6px;">${fmtSplit(ov)}<br>
+        口径：PCA 先中心化再分解；SVD 对稀疏原始矩阵直接分解。重构误差为 Frobenius 相对误差，原始矩阵存储 ${(d.pca && d.pca.variants && d.pca.variants[0]) ? d.pca.variants[0].resource.original_storage_mb : '-'} MB。</div>`;
+      box.innerHTML = html;
+    }
+
+    function esc(s) {
+      return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    // ================= 初始化 =================
+    wirePanel('clean');
+    wirePanel('class');
+    wirePanel('cluster');
+    wirePanel('dim');
+
+    // 清洗面板事件（结果获取 / 历史）
+    document.querySelectorAll('.sample-tabs button').forEach((b) => {
+      b.addEventListener('click', () => {
+        sampleMode = b.dataset.mode;
+        document.querySelectorAll('.sample-tabs button').forEach((x) => x.classList.remove('active'));
+        b.classList.add('active');
+        loadSamples();
+      });
+    });
+    $('btnRefresh').addEventListener('click', loadSamples);
+    $('btnReport').addEventListener('click', async () => {
+      try {
+        const resp = await fetch('/report');
+        const data = await resp.json();
+        if (data.status === 'failed') { alert(data.message); return; }
+        const blob = new Blob([JSON.stringify(data.report, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'evaluation_report.json'; a.click();
+        URL.revokeObjectURL(url);
+      } catch (e) { alert('下载失败：' + e.message); }
+    });
     $('btnRefreshHistory').addEventListener('click', loadHistory);
+
+    loadSamples();
     loadHistory();
+    loadClassOverview();
+    loadClusterOverview();
+    loadDimOverview();
   </script>
 </body>
 </html>
