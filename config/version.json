@@ -3,5 +3,12 @@
   "cleaned": "cleaned-v1.0",
   "rules": "rules-v1.0",
   "scoring": "scoring-v1.0",
-  "timeboundary": "timeboundary-v1.0"
+  "timeboundary": "timeboundary-v1.0",
+  "profile": "profile-v1.0",
+  "class_lr": "class-lr-v1.0",
+  "class_dt": "class-dt-v1.0",
+  "clust_kmeans": "clust-kmeans-v1.0",
+  "clust_dbscan": "clust-dbscan-v1.0",
+  "dim_pca": "dim-pca-v1.0",
+  "dim_svd": "dim-svd-v1.0"
 }
